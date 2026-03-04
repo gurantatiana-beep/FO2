@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Цифровой Детектив: Охота на Фишинг</title>
+    <style>
+        :root {
+            --primary: #ff9800; /* Оранжевый - цвет предупреждения */
+            --secondary: #00e5ff;
+            --bg: #0a0e14;
+            --surface: #1a1f26;
+            --error: #ff5252;
+            --success: #69f0ae;
+            --text: #e0e0e0;
+        }
+
+        body {
+            font-family: 'Courier New', Courier, monospace;
+            background-color: var(--bg);
+            color: var(--text);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        #game-container {
+            background-color: var(--surface);
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(255, 152, 0, 0.2);
+            max-width: 700px;
+            width: 100%;
+            border: 1px solid var(--primary);
+        }
+
+        .scanner-line {
+            width: 100%;
+            height: 2px;
+            background: var(--primary);
+            box-shadow: 0 0 10px var(--primary);
+            position: relative;
+            animation: scan 3s infinite linear;
+            margin-bottom: 10px;
+        }
+
+        @keyframes scan {
+            0% { top: 0; }
+            50% { top: 20px; }
+            100% { top: 0; }
+        }
+
+        .header { text-align: center; border-bottom: 2px solid var(--primary); padding-bottom: 10px; }
+        
+        .evidence-box {
+            background: #000;
+            padding: 20px;
+            border: 1px dashed var(--secondary);
+            margin: 20px 0;
+            min-height: 100px;
+            font-size: 1.1rem;
+            color: #00ff41; /* Цвет хакерского терминала */
+        }
+
+        .warning-label {
+            color: var(--primary);
+            font-weight: bold;
+            text-transform: uppercase;
+            font-size: 0.8rem;
+            margin-bottom: 5px;
+            display: block;
+        }
+
+        .options { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; }
+
+        .detective-btn {
+            padding: 15px;
+            border: 2px solid var(--text);
+            background: transparent;
+            color: var(--text);
+            cursor: pointer;
+            font-weight: bold;
+            transition: 0.3s;
+        }
+
+        .detective-btn:hover { background: rgba(255,255,255,0.1); }
+        .btn-safe:hover { border-color: var(--success); color: var(--success); }
+        .btn-phish:hover { border-color: var(--error); color: var(--error); }
+
+        #feedback {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 5px;
+            display: none;
+            background: #263238;
+        }
+
+        .progress { color: var(--secondary); margin-bottom: 10px; text-align: right; }
+        
+        .hidden { display: none; }
+        .result-screen { text-align: center; }
+    </style>
+</head>
+<body>
+
+<div id="game-container">
+    <div id="quiz-screen">
+        <div class="header">
+            <h1>🕵️ Детектив: Верю — Не верю</h1>
+            <div class="scanner-line"></div>
+        </div>
+        <div class="progress">Улика №<span id="current">1</span> / 6</div>
+        
+        <span class="warning-label">Анализ сообщения:</span>
+        <div id="evidence" class="evidence-box"></div>
+
+        <div class="options">
+            <button class="detective-btn btn-safe" onclick="check(false)">✅ БЕЗОПАСНО</button>
+            <button class="detective-btn btn-phish" onclick="check(true)">⚠️ ФИШИНГ / СКАМ</button>
+        </div>
+
+        <div id="feedback"></div>
+        <button id="next-btn" class="detective-btn hidden" style="width: 100%; margin-top: 20px; border-color: var(--secondary);">СЛЕДУЮЩАЯ УЛИКА >></button>
+    </div>
+
+    <div id="result-screen" class="hidden result-screen">
+        <h2>Итог расследования</h2>
+        <p id="rank-text"></p>
+        <p>Точность детектора: <span id="final-score"></span>%</p>
+        <button class="detective-btn" onclick="location.reload()">НОВОЕ ДЕЛО</button>
+    </div>
+</div>
+
+<script>
+    const cases = [
+        {
+            text: "ОТ: Support_Roblox_Gift<br>ТЕМА: Твои 10,000 Robux ждут!<br><br>Привет! Ты выиграл в лотерее. Перейди по ссылке roblox-free-win.net и введи свой пароль, чтобы забрать награду!",
+            isPhishing: true,
+            reason: "Критическая ошибка: официальные сайты не раздают валюту через странные ссылки и никогда не просят пароль для получения приза."
+        },
+        {
+            text: "ОТ: Google Security<br>ТЕМА: Новый вход в аккаунт<br><br>Мы заметили вход в ваш аккаунт с устройства в другом городе. Если это не вы, проверьте список устройств в настройках безопасности.",
+            isPhishing: false,
+            reason: "Это стандартное уведомление. Обратите внимание: оно не требует вводить пароль прямо в письме, а предлагает проверить настройки."
+        },
+        {
+            text: "СООБЩЕНИЕ В DISCORD:<br>Админ сервера: 'Привет! На сервере технические работы. Скинь скриншот своего кода восстановления, чтобы я не удалил твой профиль!'",
+            isPhishing: true,
+            reason: "Администраторы никогда не просят коды восстановления или личные данные. Это попытка кражи аккаунта (социальная инженерия)."
+        },
+        {
+            text: "ОТ: Steam-Gifts-2026<br>ТЕМА: Бесплатный скин для CS 2!<br><br>Авторизуйся через Steam на сайте steam-community-login.org и забери нож за 0 рублей!",
+            isPhishing: true,
+            reason: "Внимательно смотри на ссылку! steam-community-login.org — это поддельный сайт, имитирующий настоящий steamcommunity.com."
+        },
+        {
+            text: "ОТ: Школьный портал<br>ТЕМА: Расписание на завтра изменено<br><br>Обновленное расписание прикреплено в файле PDF. С уважением, администрация школы.",
+            isPhishing: false,
+            reason: "Если письмо ожидаемо и адрес отправителя официальный (@school.edu), это обычное рабочее сообщение. Но файлы всегда проверяй антивирусом!"
+        },
+        {
+            text: "ОТ: Твой_Друг_Вася<br>ТЕМА: Срочно выручи!<br><br>Привет, я в больнице, телефон заблокирован. Скинь 500 рублей маме на карту 4276.... Пожалуйста, не звони, говорить не могу.",
+            isPhishing: true,
+            reason: "Классическая уловка: создание паники и запрет на звонок. Всегда перезванивай другу по знакомому номеру, чтобы проверить информацию."
+        }
+    ];
+
+    let currentIdx = 0;
+    let correctAnswers = 0;
+
+    const evidenceDiv = document.getElementById('evidence');
+    const feedbackDiv = document.getElementById('feedback');
+    const nextBtn = document.getElementById('next-btn');
+
+    function loadCase() {
+        evidenceDiv.innerHTML = cases[currentIdx].text;
+        feedbackDiv.style.display = 'none';
+        nextBtn.classList.add('hidden');
+        document.getElementById('current').textContent = currentIdx + 1;
+    }
+
+    function check(userThinkPhish) {
+        const currentCase = cases[currentIdx];
+        const isCorrect = userThinkPhish === currentCase.isPhishing;
+        
+        if (isCorrect) {
+            correctAnswers++;
+            feedbackDiv.style.borderLeft = "5px solid var(--success)";
+            feedbackDiv.innerHTML = `<span style="color:var(--success)">ВЕРНО!</span><br>${currentCase.reason}`;
+        } else {
+            feedbackDiv.style.borderLeft = "5px solid var(--error)";
+            feedbackDiv.innerHTML = `<span style="color:var(--error)">ОШИБКА ДЕТЕКТИВА!</span><br>${currentCase.reason}`;
+        }
+
+        feedbackDiv.style.display = 'block';
+        nextBtn.classList.remove('hidden');
+        document.querySelectorAll('.detective-btn').forEach(b => { if(!b.id) b.disabled = true });
+    }
+
+    nextBtn.onclick = () => {
+        currentIdx++;
+        document.querySelectorAll('.detective-btn').forEach(b => b.disabled = false);
+        if (currentIdx < cases.length) {
+            loadCase();
+        } else {
+            showResults();
+        }
+    };
+
+    function showResults() {
+        document.getElementById('quiz-screen').classList.add('hidden');
+        const res = document.getElementById('result-screen');
+        res.classList.remove('hidden');
+        
+        const percent = Math.round((correctAnswers / cases.length) * 100);
+        document.getElementById('final-score').textContent = percent;
+        
+        const rank = document.getElementById('rank-text');
+        if(percent === 100) rank.textContent = "🏅 Шериф Интернета: Ни один мошенник не прошел!";
+        else if(percent >= 70) rank.textContent = "🕵️ Старший детектив: Хорошее чутье на подвох.";
+        else rank.textContent = "🔍 Стажер: Тебя легко запутать. Изучи признаки фишинга еще раз!";
+    }
+
+    loadCase();
+</script>
+</body>
+</html>
